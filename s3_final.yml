@@ -1,0 +1,23 @@
+Description: S3 Bucket with KMS encryption and versioning
+Outputs:
+  S3Bucket:
+    Description: Bucket Created! ;)
+    Value: !Ref 'S3Bucket'
+Resources:
+  S3Bucket:
+    Properties:
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              KMSMasterKeyID: arn:aws:kms:ca-central-1:443370706518:key/d7646ced-3fba-4d8d-bca3-d8d8a2529499
+              SSEAlgorithm: aws:kms
+      BucketName: polystudents3
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+    Type: AWS::S3::Bucket
