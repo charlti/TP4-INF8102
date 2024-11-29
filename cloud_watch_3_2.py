@@ -1,5 +1,5 @@
 import boto3
-from troposphere import Template, Ref, Tags, Join, Sub, Select, GetAZs, GetAtt, Parameter, Output
+from troposphere import Template, Ref, Tags, Join, Sub, Select, GetAZs, GetAtt, Parameter, Output, cloudwatch
 from troposphere.ec2 import (
     VPC,
     Subnet,
@@ -11,12 +11,15 @@ from troposphere.ec2 import (
     Route,
     SubnetRouteTableAssociation,
     SecurityGroup,
-    SecurityGroupRule
+    SecurityGroupRule,
+    FlowLog,
+    Instance,
+    BlockDeviceMapping,
+    EBSBlockDevice
 )
 
-from troposphere.ec2 import FlowLog
 from troposphere.s3 import BucketPolicy
-
+from troposphere.sns import Topic, Subscription
 
 # Créer un template Troposphere
 template = Template()
@@ -77,7 +80,7 @@ private_subnet2_cidr = template.add_parameter(
         Default="10.0.144.0/24"
     )
 )
-
+"""
 s3_bucket_name = template.add_parameter(
     Parameter(
         "S3BucketName",
@@ -86,7 +89,7 @@ s3_bucket_name = template.add_parameter(
         Default="polystudentsbucket"  # Le nom du bucket créé précédemment
     )
 )
-
+"""
 ############ Ressources ############
 
 # VPC
@@ -100,7 +103,7 @@ vpc = template.add_resource(
     )
 )
 
-
+"""
 vpc_flow_log = template.add_resource(
     FlowLog(
         "VPCFlowLog",
@@ -116,7 +119,8 @@ vpc_flow_log = template.add_resource(
         )
     )
 )
-
+"""
+"""
 bucket_policy = template.add_resource(
     BucketPolicy(
         "S3BucketPolicy",
@@ -140,7 +144,7 @@ bucket_policy = template.add_resource(
         }
     )
 )
-
+"""
 # Internet Gateway
 internet_gateway = template.add_resource(
     InternetGateway(
@@ -352,6 +356,136 @@ security_group = template.add_resource(
     )
 )
 
+
+ec2_public_instance1 = template.add_resource(
+    Instance(
+    "EC2PublicInstance1",
+    KeyName="polystudent-pair",
+    InstanceType="t2.micro",
+    ImageId="ami-0eb9fdcf0d07bd5ef",
+    AvailabilityZone="ca-central-1a",
+    SecurityGroupIds=[Ref(security_group)],
+    SubnetId=Ref(public_subnet1),
+    IamInstanceProfile="iam-instances",
+    BlockDeviceMappings=[
+        BlockDeviceMapping(
+            DeviceName="/dev/sda1",
+            Ebs=EBSBlockDevice(
+                DeleteOnTermination=False,
+                VolumeSize=80
+            )
+        )
+    ]
+    )
+)
+
+ec2_public_instance2 = template.add_resource(
+    Instance(
+    "EC2PublicInstance2",
+    KeyName="polystudent-pair",
+    InstanceType="t2.micro",
+    ImageId="ami-0eb9fdcf0d07bd5ef",
+    AvailabilityZone="ca-central-1b",
+    SecurityGroupIds=[Ref(security_group)],
+    SubnetId=Ref(public_subnet2),
+    IamInstanceProfile="iam-instances",
+    BlockDeviceMappings=[
+        BlockDeviceMapping(
+            DeviceName="/dev/sda1",
+            Ebs=EBSBlockDevice(
+                DeleteOnTermination=False,
+                VolumeSize=80
+            )
+        )
+    ]
+    )
+)
+
+
+ec2_private_instance1 = template.add_resource(
+    Instance(
+    "EC2PrivateInstance1",
+    KeyName="polystudent-pair",
+    InstanceType="t2.micro",
+    ImageId="ami-0eb9fdcf0d07bd5ef",
+    AvailabilityZone="ca-central-1a",
+    SecurityGroupIds=[Ref(security_group)],
+    SubnetId=Ref(private_subnet1),
+    IamInstanceProfile="iam-instances",
+    BlockDeviceMappings=[
+        BlockDeviceMapping(
+            DeviceName="/dev/sda1",
+            Ebs=EBSBlockDevice(
+                DeleteOnTermination=False,
+                VolumeSize=80
+            )
+        )
+    ]
+    )
+)
+
+
+ec2_private_instance2 = template.add_resource(
+    Instance(
+    "EC2PrivateInstance2",
+    KeyName="polystudent-pair",
+    InstanceType="t2.micro",
+    ImageId="ami-0eb9fdcf0d07bd5ef",
+    AvailabilityZone="ca-central-1b",
+    SecurityGroupIds=[Ref(security_group)],
+    SubnetId=Ref(private_subnet2),
+    IamInstanceProfile="iam-instances",
+    BlockDeviceMappings=[
+        BlockDeviceMapping(
+            DeviceName="/dev/sda1",
+            Ebs=EBSBlockDevice(
+                DeleteOnTermination=False,
+                VolumeSize=80
+            )
+        )
+    ]
+    )
+)
+
+alarm_sns_topic = template.add_resource(
+    Topic(
+        "AlarmSNSTopic",
+        DisplayName="CloudWatch Alarm Notifications",
+        Subscription=[
+            Subscription(
+                Protocol="email",
+                Endpoint="charles-thibault.sanchez@polymtl.ca"  
+            )
+        ]
+    )
+)
+
+cloudwatch_alarm = template.add_resource(
+    cloudwatch.Alarm(
+        "IngressPacketsAlarm",
+        AlarmDescription="Alarm for average ingress packets exceeding 1000 pkts/sec",
+        MetricName="NetworkIn",  # Metric for ingress traffic
+        Namespace="AWS/EC2",
+        Statistic="Average",
+        Period=60,  # Period in seconds (1 minute)
+        EvaluationPeriods=1,  # Trigger alarm if the threshold is breached for 1 period
+        Threshold=1000,  # 1000 packets per second
+        ComparisonOperator="GreaterThanOrEqualToThreshold",
+        Dimensions=[
+            cloudwatch.MetricDimension(
+                Name="InstanceId",
+                Value="*"  # Apply to all instances
+            )
+        ],
+        AlarmActions=[
+            Ref(alarm_sns_topic)  # Replace with an SNS Topic to notify
+        ],
+        OKActions=[
+            Ref(alarm_sns_topic)  # Notify when alarm returns to OK
+        ]
+    )
+)
+
 ############ OUTPUT ############
 
 # VPC Output
@@ -416,7 +550,7 @@ template.add_output(
         Value=Ref(private_subnet2)
     )
 )
-
+"""
 template.add_output(
     Output(
         "VPCFlowLogId",
@@ -424,17 +558,49 @@ template.add_output(
         Value=Ref(vpc_flow_log)
     )
 )
+"""
+template.add_output(
+    Output(
+        "EC2PublicInstance1Id",
+        Description="ID of the EC2 instance",
+        Value=Ref(ec2_public_instance1)
+    )
+)
+
+template.add_output(
+    Output(
+        "EC2PublicInstance2Id",
+        Description="ID of the EC2 instance",
+        Value=Ref(ec2_public_instance2)
+    )
+)
+
+template.add_output(
+    Output(
+        "EC2PrivateInstance1Id",
+        Description="ID of the EC2 instance",
+        Value=Ref(ec2_private_instance1)
+    )
+)
+
+template.add_output(
+    Output(
+        "EC2PrivateInstance2Id",
+        Description="ID of the EC2 instance",
+        Value=Ref(ec2_private_instance2)
+    )
+)
 
 
 ############ boto3 ############
 
-with open('vpc_logs.yml', 'w') as f:
+with open('cloudwatch.yml', 'w') as f:
     f.write(template.to_yaml())
 
 print("Template yml bien généré dans le fichier")
 
 
-with open('vpc_logs.yml', 'r') as template:
+with open('cloudwatch.yml', 'r') as template:
     template_body = template.read()
 
 
